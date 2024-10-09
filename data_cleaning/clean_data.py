@@ -1,7 +1,20 @@
 import re
+import csv
+import os
+import logging
+from tqdm import tqdm
 
-# Define bad words list (replace with actual Tibetan bad words)
-BAD_WORDS = ["badword1", "badword2"]  # Example placeholder
+# Setup logging
+logging.basicConfig(filename='cleaning.log', level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Function to load words from a CSV file
+def load_words_from_csv(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        text = file.read()
+    words = list(text.split(', '))
+    return words
+
 
 # Function to remove extra whitespaces, newlines, and tabs
 def remove_extra_whitespace(text):
@@ -23,38 +36,80 @@ def remove_contact_numbers(text):
 def remove_html_tags(text):
     return re.sub(r'<.*?>', '', text)
 
-# Function to remove non-Tibetan characters (preserving Tibetan script)
-def remove_non_tibetan_characters(text):
-    return re.sub(r'[^\u0F00-\u0FFF ]+', '', text)  # Tibetan script range is U+0F00 to U+0FFF
-
-# Function to remove English text
-def remove_english_text(text):
-    return re.sub(r'[A-Za-z]+', '', text)
+# Function to preserve French characters (removing non-French characters)
+def remove_non_french_characters(text):
+    # Retain French accented characters, punctuation, and spaces
+    return re.sub(r'[^a-zA-ZàâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ ,.!?\'"-]+', '', text)
 
 # Function to remove bad words based on a predefined list
 def remove_bad_words(text, bad_words):
     for bad_word in bad_words:
-        text = re.sub(bad_word, '', text)
+        text = re.sub(r'\b' + re.escape(bad_word) + r'\b', '', text)
     return text
 
-# Main function to clean the Tibetan text
-def clean_tibetan_text(text):
+# Function to remove common names
+def remove_names(text, common_names):
+    # Remove names from the common names list
+    for name in common_names:
+        text = re.sub(r'\b' + re.escape(name) + r'\b', '', text)
+    
+    # Optionally remove capitalized words that are not at the start of a sentence
+    text = re.sub(r'(?<!\.\s)(?<!^)[A-Z][a-z]+', '', text)  # Look for capitalized words
+    return text
+
+
+def clean_french_text(text):
     text = remove_extra_whitespace(text)
     text = remove_urls(text)
     text = remove_emails(text)
     text = remove_contact_numbers(text)
     text = remove_html_tags(text)
-    text = remove_non_tibetan_characters(text)
+    text = remove_non_french_characters(text)
     text = remove_bad_words(text, BAD_WORDS)
-    text = remove_extra_whitespace(text)  # Final whitespace cleaning
+    text = remove_names(text, COMMON_FRENCH_NAMES)
+    text = remove_extra_whitespace(text)
     return text
 
-# # Sample Tibetan text to clean
-# sample_text = """
-# བོད་ཡིག་ཚགས་བསྡུའི་ཡིག་རྒྱུན། Contact me at 123-456-7890 or +1234567890, 
-# email: someone@example.com. Visit: http://example.com. badword1
-# """
+# Function to preserve directory structure and clean files
+def clean_dataset(raw_dir, cleaned_dir):
+    for root, dirs, files in tqdm(os.walk(raw_dir)):
+        for file in tqdm(files):
+            if file.endswith('.txt'):
+                
+                src_file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(src_file_path, raw_dir)
+                
+                # Create matching directory structure in cleaned_dataset
+                cleaned_file_dir = os.path.join(cleaned_dir, os.path.dirname(relative_path))
+                os.makedirs(cleaned_file_dir, exist_ok=True)
+                
+                # Read raw text file
+                with open(src_file_path, 'r', encoding='utf-8') as f:
+                    raw_text = f.read()
+                
+                try:
+                    # Clean the text
+                    cleaned_text = clean_french_text(raw_text)
 
-# # Clean the sample text using the modular functions
-# cleaned_text = clean_tibetan_text(sample_text)
-# print(cleaned_text)
+                    # Save the cleaned file
+                    cleaned_file_path = os.path.join(cleaned_file_dir, file)
+
+                    with open(cleaned_file_path, 'w', encoding='utf-8') as cleaned_file:
+                        cleaned_file.write(cleaned_text)
+
+                    # Log the successful cleaning of the file
+                    # logging.info(f'Cleaned: {src_file_path} -> {cleaned_file_path}')
+                except Exception as e:
+                    # Log any errors during the cleaning process
+                    logging.error(f'Error cleaning {src_file_path}: {e}')
+
+# Usage example
+if __name__ == "__main__":
+
+    # Load bad words and names from CSV files
+    BAD_WORDS = load_words_from_csv('/home/husainmalwat/french_nlp/CS613-Assign_1/data_cleaning/bad_words.csv')  # Path to your bad words CSV
+    COMMON_FRENCH_NAMES = load_words_from_csv('/home/husainmalwat/french_nlp/CS613-Assign_1/data_cleaning/french_common_names.csv')  # Path to your names CSV
+
+    raw_dataset_dir = '/home/husainmalwat/french_nlp/raw_data'
+    cleaned_dataset_dir = '/home/husainmalwat/french_nlp/cleaned_data'
+    clean_dataset(raw_dataset_dir, cleaned_dataset_dir)

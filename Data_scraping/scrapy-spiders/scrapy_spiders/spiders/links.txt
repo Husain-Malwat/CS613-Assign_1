@@ -1,0 +1,6 @@
+https://www.24heures.ca/sitemap.xml
+https://www.7jours.ca/sitemap.xml
+https://www.education.gouv.fr/sitemap.xml
+https://rouen.fr/sitemap.xml
+https://www.saint-galmier.fr/sitemap_index.xml
+https://www.princeedwardisland.ca/fr/sitemap.xml
